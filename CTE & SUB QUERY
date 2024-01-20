@@ -1,0 +1,153 @@
+ CTE’s query
+FIND THE AVERAGE AMOUNT PAID BY THE TOP 5 CUSTOMERS
+WITH TopCountries AS (
+SELECT co.country_id
+FROM country co
+JOIN city ci ON co.country_id = ci.country_id
+JOIN address a ON ci.city_id = a.city_id
+JOIN customer cu ON a.address_id = cu.address_id GROUP BY co.country_id
+ORDER BY COUNT(cu.customer_id) DESC
+LIMIT 10 ),
+TopCities AS (
+SELECT ci.city_id
+FROM city ci
+JOIN TopCountries tc ON ci.country_id = tc.country_id JOIN address a ON ci.city_id = a.city_id
+JOIN customer cu ON a.address_id = cu.address_id GROUP BY ci.city_id
+ORDER BY COUNT(cu.customer_id) DESC
+LIMIT 10
+),
+CustomerPayments AS (
+SELECT
+cu.customer_id,
+cu.first_name,
+cu.last_name,
+co.country,
+ci.city,
+ci.city_id, -- Include city_id to be used in the WHERE clause SUM(p.amount) AS total_amount_paid
+FROM payment p
+JOIN customer cu ON p.customer_id = cu.customer_id
+JOIN address a ON cu.address_id = a.address_id
+JOIN city ci ON a.city_id = ci.city_id
+JOIN country co ON ci.country_id = co.country_id
+GROUP BY cu.customer_id, cu.first_name, cu.last_name, co.country, ci.city, ci.city_id
+),
+FilteredPayments AS (
+SELECT *
+FROM CustomerPayments
+WHERE city_id IN (SELECT city_id FROM TopCities) -- Now city_id is recognized
+)
+SELECT AVG(total_amount_paid) AS average_amount_paid
+  
+FROM FilteredPayments;
+FIND OUT HOW MANY OF THE TOP 5 CUSTOMERS ARE BASED WITHIN EACH COUNTRY
+WITH TopCountries AS (
+SELECT co.country_id, co.country
+FROM country co
+JOIN city ci ON co.country_id = ci.country_id
+JOIN address a ON ci.city_id = a.city_id
+JOIN customer cu ON a.address_id = cu.address_id GROUP BY co.country_id, co.country
+ORDER BY COUNT(cu.customer_id) DESC
+LIMIT 10
+),
+TopCities AS (
+SELECT ci.city_id
+FROM city ci
+JOIN address a ON ci.city_id = a.city_id
+JOIN customer cu ON a.address_id = cu.address_id
+WHERE ci.country_id IN (SELECT country_id FROM TopCountries) GROUP BY ci.city_id
+ORDER BY COUNT(cu.customer_id) DESC
+LIMIT 10
+),
+CustomerPayments AS (
+SELECT
+cu.customer_id,
+cu.first_name,
+cu.last_name,
+co.country,
+ci.city,
+SUM(p.amount) AS total_amount_paid
+FROM payment p
+JOIN customer cu ON p.customer_id = cu.customer_id
+JOIN address a ON cu.address_id = a.address_id
+JOIN city ci ON a.city_id = ci.city_id
+JOIN country co ON ci.country_id = co.country_id
+WHERE ci.city_id IN (SELECT city_id FROM TopCities)
+GROUP BY cu.customer_id, cu.first_name, cu.last_name, co.country, ci.city
+),
+FilteredPayments AS (
+SELECT *
+FROM CustomerPayments
+ORDER BY total_amount_paid DESC LIMIT 5
+)
+SELECT
+co.country, fp.customer_id, fp.first_name, fp.last_name, fp.total_amount_paid
+FROM FilteredPayments fp
+JOIN country co ON fp.country = co.country
+ORDER BY co.country, fp.total_amount_paid DESC;
+ 
+ explanation
+The main difference between Common Table Expressions (CTEs) and subqueries lies in their structure and readability, although they can often be used to achieve similar results.
+Subqueries
+• Definition: A subquery is a SQL query nested inside a larger query.
+• Use Case: typically used when a query is dependent on the results of another
+query. For instance, we might use a subquery to filter results in a `WHERE`
+clause or to select a calculated value in a `SELECT` clause.
+• Example: Suppose we want to find all customers who have made payments
+above the average payment amount. We might use a subquery to first calculate the average payment amount and then use it in a `WHERE` clause to filter customers.
+SELECT *
+FROM customer
+WHERE total_amount_paid > (
+SELECT AVG(total_amount_paid)
+FROM payment )
+In this example, the subquery calculates the average payment amount, and the outer query uses this value to filter customers.
+Common Table Expressions (CTEs)
+   
+• Definition: A CTE is a temporary result set that we can reference within a SELECT, INSERT, UPDATE, or DELETE statement. CTEs make complex queries more readable by breaking them into simpler, modular parts.
+• Use Case: CTEs are particularly useful in complex queries involving multiple steps or stages, such as recursive queries, or when we need to reference a subquery multiple times.
+• Example: Using the same scenario as above, we will rewrite the query with a CTE.
+WITH AvgPayment AS (
+SELECT AVG(total_amount_paid) AS avg_amount FROM payment
+)
+SELECT *
+FROM customer
+WHERE total_amount_paid > (SELECT avg_amount FROM AvgPayment)
+In this example, the CTE `AvgPayment` computes the average payment amount. The main query then uses this CTE to filter customers.
+COMPARING THE PERFORMANCE OF CTE’s AND SUBQUERY
+To compare the performance of the subquery-based query and the query using Common Table Expressions (CTEs), there are few aspects to consider:
+Performance Expectations
+1. Subqueries
+• Subqueries are often processed in-line with the main query.
+• They can be optimized by the query optimizer, particularly when they are used in a
+simple form.
+• In some cases, especially for correlated subqueries (where the subquery
+references columns from the outer query), they might lead to less efficient execution plans due to repeated execution.
+2. CTEs
+• CTEs provide a more readable and modular approach to writing complex SQL
+queries.
+• However, depending on the SQL database system, CTEs might be materialized
+(i.e., their result is computed and stored temporarily), which can lead to additional
+overhead if the CTE is large or complex.
+• On the other hand, when a CTE is used multiple times in the main query,
+materialization can be beneficial as it avoids recalculating the same data.
+Performance Testing
+   
+3. Using `EXPLAIN`
+• The `EXPLAIN` command in PostgreSQL (or a similar command in other
+databases) can be used to get an estimated cost and execution plan for both
+queries.
+• It's important to note that `EXPLAIN` provides an estimated execution plan and
+cost, which might not always match actual runtime performance.
+4. Actual Runtime Testing
+• To get actual performance data, running both queries in a tool like pgAdmin 4 and
+measuring the execution time in milliseconds is a practical approach.
+• This real execution time will give a clearer picture of how each query performs
+under the specific database configuration and data distribution.
+CTE vs Subquery in a complex queries
+The results might vary based on factors like database engine optimization, data size, indexing, and system resources. It's possible that:
+• The CTE-based query might show higher costs in the `EXPLAIN` plan due to materialization but could still perform well in practice, especially if the CTE results are reused.
+• The subquery-based query might have lower estimated costs but could perform worse if the subqueries are complex or correlated.
+however, the choice between using subqueries and CTEs often comes down to a balance between readability, maintainability, and performance, which can vary depending on the specific database system and the query's complexity.
+ CTE query plan
+
+ SUBQUERY QUERY PLAN
+ 
