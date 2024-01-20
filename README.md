@@ -20,7 +20,7 @@ The analysis will be conducted using Rockbuster's existing data, available for d
 ## Methodology
 1. Data Loading: Import the provided data set into an RDBMS platform.
 2. Data Analysis: Utilize SQL queries to extract insights relevant to the business questions.
-3. Reporting**: Summarize findings in a clear and accessible format for the Management Board.
+3. Reporting: Summarize findings in a clear and accessible format for the Management Board.
 
 ## Tools Used
 - SQL for data querying.
@@ -35,4 +35,4 @@ This section will provide a summary of the insights derived from the analysis an
 ## Contact
 For more information, please contact Malavica.surakanti@gmail.com
 
-This project is part of the Business Intelligence efforts at Rockbuster Stealth and aims to utilize data to drive strategic decisions.*
+This project is part of the Business Intelligence efforts at Rockbuster Stealth and aims to utilize data to drive strategic decisions.
